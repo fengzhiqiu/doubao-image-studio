@@ -71,7 +71,7 @@ export function PromptBar({ onSubmit, disabled, initialPrompt = '', initialRefer
     setPrompt('');
     setRefImage(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-  }, [prompt, aspectRatio, disabled, switchMode, refImage, onSubmit]);
+  }, [prompt, style, aspectRatio, disabled, switchMode, refImage, onSubmit]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
