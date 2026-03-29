@@ -178,9 +178,13 @@ fn get_default_download_dir() -> Result<std::path::PathBuf, String> {
         let home = std::env::var("HOME").map_err(|_| "Could not find HOME directory".to_string())?;
         Ok(std::path::PathBuf::from(home).join("Downloads"))
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
-        // Fallback or other OS support
+        let home = std::env::var("USERPROFILE").map_err(|_| "Could not find USERPROFILE directory".to_string())?;
+        Ok(std::path::PathBuf::from(home).join("Downloads"))
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
         std::env::current_dir().map_err(|e| e.to_string())
     }
 }
@@ -198,8 +202,9 @@ pub fn run() {
         println!("[AI Studio] Port 8081 already in use, skipping server start");
         None
     } else if let (Some(node), Some(dir)) = (node_path, server_dir) {
+        let script_path = dir.join("src/app.js");
         match Command::new(&node)
-            .arg("src/app.js")
+            .arg(script_path)
             .current_dir(&dir)
             .env("PORT", "8081")
             .spawn()
@@ -251,15 +256,15 @@ pub fn run() {
 }
 
 fn which_node() -> Option<String> {
-    // Common node paths on macOS
     let candidates = [
         "/usr/local/opt/node@22/bin/node",
         "/usr/local/bin/node",
         "/opt/homebrew/bin/node",
         "node",
+        "node.exe",
     ];
     for path in &candidates {
-        if std::path::Path::new(path).exists() || path == &"node" {
+        if std::path::Path::new(path).exists() || *path == "node" || *path == "node.exe" {
             return Some(path.to_string());
         }
     }
@@ -279,7 +284,7 @@ fn find_server_dir() -> Option<String> {
     ];
 
     for path in &candidates {
-        if path.join("src/app.js").exists() {
+        if path.join("src").join("app.js").exists() {
             return Some(path.to_string_lossy().to_string());
         }
     }

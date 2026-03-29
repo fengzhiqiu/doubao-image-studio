@@ -30,8 +30,8 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "../server/**",
-      "../DoubaoShadowNode-local/**"
+      "../server",
+      "../DoubaoShadowNode-local"
     ],
     "macOS": {
       "infoPlist": "Info.plist"
