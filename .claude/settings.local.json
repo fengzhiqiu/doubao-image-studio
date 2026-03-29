@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm:*)",
+      "Bash(find:*)",
+      "Bash(md5)",
+      "Bash(git checkout:*)"
+    ]
+  }
+}
