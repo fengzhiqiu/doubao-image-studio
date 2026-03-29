@@ -20,7 +20,7 @@ export function useImageGeneration() {
       updateCurrentJob({ status: 'generating' });
 
       try {
-        const urls = await generateImages(
+        const results = await generateImages(
           prompt, 
           targetRatio, 
           settings.websocketUrl, 
@@ -30,37 +30,27 @@ export function useImageGeneration() {
 
         const batchId = crypto.randomUUID();
 
-        // Save each image to local history folder
-        const savedImages = await Promise.all(urls.map(async (url) => {
+        // Create image objects immediately using remote URLs
+        const generatedImages = results.map((result) => {
           const id = crypto.randomUUID();
-          let localPath: string | undefined;
-          try {
-            // Save to local disk
-            localPath = await invoke<string>('save_history_image', { 
-              url, 
-              id, 
-              saveDir: settings.historyDir 
-            });
-          } catch (err) {
-            console.error('[AI Studio] Failed to save history image:', err);
-          }
-          
           return {
             id,
             batchId,
-            url,
-            localPath,
+            url: result.url,
+            thumbnailUrl: result.thumbnail_url,
+            width: result.width,
+            height: result.height,
             prompt,
             model: 'doubao' as const,
             aspectRatio: targetRatio,
             createdAt: Date.now(),
           };
-        }));
+        });
 
         // Add all returned images to gallery and sync to SQLite
         const base = settings.websocketUrl.replace('ws://', 'http://').replace('/ws', '');
         
-        [...savedImages].reverse().forEach(async (img) => {
+        [...generatedImages].reverse().forEach(async (img) => {
           addImage(img);
           // Sync to SQLite (don't await to keep UI fast)
           fetch(`${base}/api/history`, {
@@ -70,7 +60,7 @@ export function useImageGeneration() {
           }).catch(e => console.warn('History sync failed:', e));
         });
 
-        updateCurrentJob({ status: 'success', result: savedImages[0] });
+        updateCurrentJob({ status: 'success', result: generatedImages[0] });
       } catch (error) {
         updateCurrentJob({
           status: 'error',

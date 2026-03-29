@@ -9,6 +9,7 @@ interface ImageStore {
   viewedImageId: string | null;
 
   addImage: (image: GeneratedImage) => void;
+  updateImage: (id: string, patch: Partial<GeneratedImage>) => void;
   removeImage: (id: string) => void;
   clearImages: () => void;
   setCurrentJob: (job: GenerationJob | null) => void;
@@ -29,6 +30,13 @@ export const useImageStore = create<ImageStore>()(
 
       addImage: (image) =>
         set((state) => ({ images: [image, ...state.images] })),
+
+      updateImage: (id, patch) =>
+        set((state) => ({
+          images: state.images.map((img) =>
+            img.id === id ? { ...img, ...patch } : img
+          ),
+        })),
 
       removeImage: (id) =>
         set((state) => ({ images: state.images.filter((img) => img.id !== id) })),

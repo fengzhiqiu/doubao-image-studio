@@ -15,6 +15,7 @@ export interface GeneratedImage {
   id: string;
   batchId?: string;
   url: string;
+  thumbnailUrl?: string;
   localPath?: string;
   prompt: string;
   model: ModelId;

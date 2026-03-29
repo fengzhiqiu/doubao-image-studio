@@ -106,8 +106,10 @@ async function handleGenerateRequest(msg) {
 
     // Send to content script with retry
     let retries = 3;
+    const maxRetries = 3;
     while (retries > 0) {
         try {
+            console.log(`Sending to tab ${tabId}, attempt ${maxRetries - retries + 1}...`);
             const response = await chrome.tabs.sendMessage(tabId, {
                 type: 'PROMPT',
                 text: prompt,
@@ -120,7 +122,7 @@ async function handleGenerateRequest(msg) {
             console.log('Content script responded:', response);
             return; // Success
         } catch (e) {
-            console.error(`Error sending to content script (${retries} retries left):`, e);
+            console.error(`Attempt ${maxRetries - retries + 1} failed: ${e.message}`);
             retries--;
 
             if (retries === 0) {
@@ -145,11 +147,12 @@ async function handleGenerateRequest(msg) {
                     });
                     return;
                 } catch (injectError) {
-                    console.error('Failed to inject content script:', injectError);
-                    sendError(msg.requestId, "Failed to communicate with Doubao tab. Refresh the page?");
+                    console.error('Failed to inject or communicate after injection:', injectError);
+                    sendError(msg.requestId, "Failed to communicate with Doubao tab. Please refresh the Doubao page manually.");
                 }
             } else {
-                await new Promise(r => setTimeout(r, 500));
+                // Exponential backoff or just a delay
+                await new Promise(r => setTimeout(r, 1000));
             }
         }
     }
@@ -214,6 +217,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 request.images.forEach(img => {
                     parts.push({
                         imageUrl: img.url,
+                        thumbnailUrl: img.thumbnail_url || img.thumbnailUrl || img.url,
                         width: img.width,
                         height: img.height
                     });

@@ -20,10 +20,38 @@ export function CanvasArea({ onReusePrompt, onUseAsReference }: CanvasAreaProps)
   const currentJob = useImageStore((s) => s.currentJob);
   const { generate } = useImageGeneration();
 
+  const ensureDownloaded = async (img: GeneratedImage): Promise<string> => {
+    // If already has localPath, return it (proxied)
+    if (img.localPath) return `http://localhost:8081/local-proxy?path=${encodeURIComponent(img.localPath)}`;
+
+    try {
+      const { settings } = useSettingsStore.getState();
+      const showToast = useNotificationStore.getState().show;
+      showToast('正在准备原图...', 'info');
+      
+      const localPath = await invoke<string>('save_history_image', { 
+        url: img.url, 
+        id: img.id, 
+        saveDir: settings.historyDir || null
+      });
+      
+      const { updateImage } = useImageStore.getState();
+      updateImage(img.id, { localPath });
+      
+      return localPath;
+    } catch (err) {
+      console.error('Failed to download history image:', err);
+      return img.url;
+    }
+  };
+
   const handleDownload = async (img: GeneratedImage) => {
     try {
       const { settings } = useSettingsStore.getState();
       const showToast = useNotificationStore.getState().show;
+      
+      // Ensure it's in history first if we want pure local persistence, 
+      // but for "Download" we usually mean save to the User's Download folder
       await invoke('download_image', { 
         url: img.url, 
         filename: `doubao_${img.id}.png`,
@@ -36,6 +64,14 @@ export function CanvasArea({ onReusePrompt, onUseAsReference }: CanvasAreaProps)
       showToast('获取到图片链接，请在浏览器中保存', 'error');
       window.open(img.url, '_blank');
     }
+  };
+
+  const handleUseAsReference = async (img: GeneratedImage) => {
+    if (!onUseAsReference) return;
+    
+    // For reference images, we MUST have it locally so Doubao extension can read it from the proxy
+    await ensureDownloaded(img);
+    onUseAsReference(img.url);
   };
 
   const handleRegenerate = (prompt: string) => {
@@ -91,7 +127,7 @@ export function CanvasArea({ onReusePrompt, onUseAsReference }: CanvasAreaProps)
                 onReuse={onReusePrompt}
                 onRegenerate={handleRegenerate}
                 onDownload={handleDownload}
-                onUseAsReference={onUseAsReference}
+                onUseAsReference={handleUseAsReference}
               />
             ))}
           </div>

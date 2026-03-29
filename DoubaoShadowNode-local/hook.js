@@ -64,11 +64,15 @@
                                                 const content = JSON.parse(eventData.message.content);
                                                 if (content.creations && Array.isArray(content.creations)) {
                                                     content.creations.forEach(creation => {
-                                                        if (creation.type === 1 && creation.image && creation.image.image_ori_raw) {
+                                                        if (creation.type === 1 && creation.image) {
+                                                            const imgData = creation.image;
                                                             images.push({
-                                                                url: creation.image.image_ori_raw.url,
-                                                                width: creation.image.image_ori_raw.width,
-                                                                height: creation.image.image_ori_raw.height
+                                                                // High-res (No watermark)
+                                                                url: imgData.image_ori_raw?.url || imgData.image_ori?.url || '',
+                                                                // Preview / Thumbnail
+                                                                thumbnail_url: imgData.image_thumb?.url || imgData.image_preview?.url || imgData.image_ori_raw?.url || '',
+                                                                width: imgData.image_ori_raw?.width || imgData.image_ori?.width || 1024,
+                                                                height: imgData.image_ori_raw?.height || imgData.image_ori?.height || 1024
                                                             });
                                                         }
                                                     });

@@ -10,7 +10,7 @@ interface ImageCardProps {
   onRemove?: () => void;
   onReuse?: (prompt: string) => void;
   onDownload?: () => void;
-  onUseAsReference?: (url: string) => void;
+  onUseAsReference?: (img: GeneratedImage) => void;
 }
 
 export function ImageCard({
@@ -49,7 +49,7 @@ export function ImageCard({
         <div className="flex flex-wrap items-center gap-1.5 justify-end">
           {onUseAsReference && (
             <button
-              onClick={(e) => { e.stopPropagation(); onUseAsReference(image.url); }}
+              onClick={(e) => { e.stopPropagation(); onUseAsReference(image); }}
               className="px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-bold shadow-lg shadow-violet-900/40 transition-all"
             >
               参考

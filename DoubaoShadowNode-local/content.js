@@ -21,17 +21,27 @@ window.addEventListener('message', (event) => {
 
         console.log('Received chunk:', { text: text.substring(0, 50), images: images.length });
 
+        // Check if extension context is still valid
+        if (!chrome.runtime || !chrome.runtime.id) {
+            console.warn('Doubao Shadow Node: Extension context invalidated, ignoring message.');
+            return;
+        }
+
         // Send final result when finished
         if (event.data.is_finish || event.data.is_finish === true) {
             console.log('Response finished via Hook:', { text: accumulatedResponse.substring(0, 100), images: images.length });
 
             if (currentRequestId) {
-                chrome.runtime.sendMessage({
-                    type: 'RESULT',
-                    requestId: currentRequestId,
-                    text: accumulatedResponse,
-                    images: images
-                });
+                try {
+                    chrome.runtime.sendMessage({
+                        type: 'RESULT',
+                        requestId: currentRequestId,
+                        text: accumulatedResponse,
+                        images: images
+                    });
+                } catch (err) {
+                    console.error('Failed to send result:', err);
+                }
                 currentRequestId = null;
                 accumulatedResponse = '';
             }

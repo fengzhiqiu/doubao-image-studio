@@ -12,7 +12,7 @@ interface ImageBatchProps {
   onReuse: (prompt: string) => void;
   onRegenerate: (prompt: string) => void;
   onDownload: (img: GeneratedImage) => void;
-  onUseAsReference?: (url: string) => void;
+  onUseAsReference?: (img: GeneratedImage) => void;
 }
 
 export function ImageBatch({

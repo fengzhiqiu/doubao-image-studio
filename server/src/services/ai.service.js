@@ -325,11 +325,12 @@ class AIService {
             }
 
             return parts
-                .filter(part => part.imageUrl)
+                .filter(part => part.imageUrl || part.url)
                 .map(part => ({
-                    url: part.imageUrl,
+                    url: part.imageUrl || part.url,
                     width: part.width,
-                    height: part.height
+                    height: part.height,
+                    thumbnail_url: part.thumbnail_url || part.thumbnailUrl || part.imageUrl || part.url
                 }));
         } catch (error) {
             console.error('Error extracting images:', error);

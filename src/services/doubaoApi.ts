@@ -33,13 +33,20 @@ async function httpGet(url: string): Promise<unknown> {
   }
 }
 
+export interface ImageResult {
+  url: string;
+  thumbnail_url?: string;
+  width?: number;
+  height?: number;
+}
+
 export async function generateImages(
   prompt: string,
   aspectRatio: AspectRatio,
   serverUrl: string,
   switchToImageMode: boolean = false,
   referenceImages: string[] = []
-): Promise<string[]> {
+): Promise<ImageResult[]> {
   const base = getBaseUrl(serverUrl);
   const url = `${base}/api/images/generate`;
   const body = JSON.stringify({
@@ -53,7 +60,7 @@ export async function generateImages(
   const text = await httpPost(url, body);
   const data = JSON.parse(text) as {
     success: boolean;
-    images: { url?: string; imageUrl?: string }[];
+    images: { url?: string; imageUrl?: string; thumbnail_url?: string; width?: number; height?: number }[];
     error?: string;
   };
 
@@ -61,8 +68,13 @@ export async function generateImages(
   if (!data.images?.length) throw new Error('未返回图片');
 
   return data.images
-    .map((img) => img.url ?? img.imageUrl ?? '')
-    .filter(Boolean);
+    .map((img) => ({
+      url: img.url ?? img.imageUrl ?? '',
+      thumbnail_url: img.thumbnail_url,
+      width: img.width,
+      height: img.height
+    }))
+    .filter((img) => img.url !== '');
 }
 
 export async function checkWorkerStatus(serverUrl: string): Promise<boolean> {
