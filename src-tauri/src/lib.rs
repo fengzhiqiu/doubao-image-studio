@@ -202,10 +202,11 @@ pub fn run() {
         println!("[AI Studio] Port 8081 already in use, skipping server start");
         None
     } else if let (Some(node), Some(dir)) = (node_path, server_dir) {
-        let script_path = dir.join("src/app.js");
+        let dir_path = std::path::PathBuf::from(&dir);
+        let script_path = dir_path.join("src").join("app.js");
         match Command::new(&node)
             .arg(script_path)
-            .current_dir(&dir)
+            .current_dir(&dir_path)
             .env("PORT", "8081")
             .spawn()
         {
