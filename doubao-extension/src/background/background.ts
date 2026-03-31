@@ -134,7 +134,7 @@ async function handleGenerateRequest(msg: any) {
                 try {
                     await chrome.scripting.executeScript({
                         target: { tabId: tabId },
-                        files: ['assets/src/content/index.js'] // Vite builds content script here
+                        files: ['assets/index.ts.js'] // Vite builds content script here
                     });
                     console.log('Manually injected content script, retrying...');
                     await new Promise(r => setTimeout(r, 1000));
