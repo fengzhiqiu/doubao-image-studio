@@ -486,7 +486,8 @@ async function uploadReferenceImages(referenceImages) {
         const fileInput = fileInputs[0];
         fileInput.files = dataTransfer.files;
 
-        // Trigger change event
+        // Trigger input and change events (Mocking Playwright's setInputFiles behavior)
+        fileInput.dispatchEvent(new Event('input', { bubbles: true }));
         fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 
         console.log('Triggered file upload for', files.length, 'reference images');

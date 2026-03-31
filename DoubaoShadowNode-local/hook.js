@@ -4,6 +4,7 @@
     window.fetch = async function (url, options) {
         const response = await originalFetch(url, options);
 
+        // Start standard stream parsing
         if (url && url.toString().includes('chat/completion')) {
             console.log('Doubao Shadow Node: Intercepted chat completion', url);
 
