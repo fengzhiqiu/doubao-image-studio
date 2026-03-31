@@ -8,6 +8,7 @@ class WebSocketService {
         this.appletSocket = null; // Legacy fallback (Gemini)
         this.modelSocketMap = new Map(); // Map model names to sockets
         this.pendingRequests = new Map();
+        this.progressStore = new Map(); // requestId -> { text, updatedAt }
     }
 
     /**
@@ -109,6 +110,17 @@ class WebSocketService {
     handleResponse(msg) {
         let id, success, payload, error;
 
+        // Handle progress updates - store for polling
+        if (msg.type === 'PROGRESS') {
+            const progressText = msg.content?.text || '';
+            this.progressStore.set(msg.requestId, {
+                text: progressText,
+                updatedAt: Date.now()
+            });
+            console.log(`📊 Progress [${msg.requestId}]: ${progressText}`);
+            return;
+        }
+
         if (msg.type === 'RESPONSE') {
             id = msg.requestId;
             success = true;
@@ -144,6 +156,7 @@ class WebSocketService {
                 });
             }
             this.pendingRequests.delete(id);
+            this.progressStore.delete(id);
         }
     }
 

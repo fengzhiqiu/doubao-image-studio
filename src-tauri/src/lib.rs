@@ -32,6 +32,17 @@ async fn check_worker(url: String) -> bool {
 }
 
 #[tauri::command]
+async fn fetch_text(url: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let res = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let text = res.text().await.map_err(|e| e.to_string())?;
+    Ok(text)
+}
+
+#[tauri::command]
 async fn generate_image_request(url: String, body: String) -> Result<String, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(240))
@@ -237,6 +248,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_server_status, 
             check_worker, 
+            fetch_text,
             generate_image_request, 
             download_image,
             save_history_image,

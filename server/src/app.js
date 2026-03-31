@@ -227,6 +227,23 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Progress polling endpoint
+app.get('/api/progress', (req, res) => {
+    // Return the latest progress from any active task
+    let latestText = '';
+    let latestTime = 0;
+    for (const [, progress] of websocketService.progressStore) {
+        if (progress.updatedAt > latestTime) {
+            latestTime = progress.updatedAt;
+            latestText = progress.text;
+        }
+    }
+    res.json({
+        text: latestText,
+        active: websocketService.pendingRequests.size > 0
+    });
+});
+
 // Serve config.json
 app.get('/config.json', (req, res) => {
     res.sendFile(path.join(__dirname, '../config.json'));

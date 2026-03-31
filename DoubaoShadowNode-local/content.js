@@ -13,6 +13,17 @@ let accumulatedResponse = '';
 window.addEventListener('message', (event) => {
     if (event.source !== window) return;
 
+    if (event.data.type === 'DOUBAO_PROGRESS') {
+        if (currentRequestId && chrome.runtime && chrome.runtime.id) {
+            chrome.runtime.sendMessage({
+                type: 'PROGRESS',
+                requestId: currentRequestId,
+                text: event.data.text
+            }).catch(() => {});
+        }
+        return;
+    }
+
     if (event.data.type === 'DOUBAO_CHUNK') {
         const text = event.data.text;
         const images = event.data.images || [];

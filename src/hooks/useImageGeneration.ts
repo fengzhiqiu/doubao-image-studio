@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useImageStore, makeJob } from '../store/imageStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { generateImages } from '../services/doubaoApi';
+import { getBaseUrl } from '../services/doubaoApi';
 import type { AspectRatio } from '../types';
 
 export function useImageGeneration() {
@@ -17,7 +18,30 @@ export function useImageGeneration() {
       // Add reference images to job state
       const jobWithRefs = { ...job, referenceImages };
       setCurrentJob(jobWithRefs);
-      updateCurrentJob({ status: 'generating' });
+      updateCurrentJob({ status: 'generating', progressText: '正在连接豆包...' });
+
+      // Start polling for progress
+      const base = getBaseUrl(settings.websocketUrl);
+      const progressUrl = `${base}/api/progress`;
+      let polling = true;
+      
+      const pollProgress = async () => {
+        while (polling) {
+          try {
+            const text = await invoke<string>('fetch_text', { url: progressUrl });
+            const data = JSON.parse(text) as { text: string; active: boolean };
+            if (data.text && polling) {
+              updateCurrentJob({ progressText: data.text });
+            }
+          } catch {
+            // ignore polling errors
+          }
+          await new Promise(r => setTimeout(r, 1500));
+        }
+      };
+      
+      // Start polling in background
+      pollProgress();
 
       try {
         const results = await generateImages(
@@ -27,6 +51,9 @@ export function useImageGeneration() {
           switchToImageMode ?? false, 
           referenceImages
         );
+
+        // Stop polling
+        polling = false;
 
         const batchId = crypto.randomUUID();
 
@@ -48,8 +75,6 @@ export function useImageGeneration() {
         });
 
         // Add all returned images to gallery and sync to SQLite
-        const base = settings.websocketUrl.replace('ws://', 'http://').replace('/ws', '');
-        
         [...generatedImages].reverse().forEach(async (img) => {
           addImage(img);
           // Sync to SQLite (don't await to keep UI fast)
@@ -62,6 +87,7 @@ export function useImageGeneration() {
 
         updateCurrentJob({ status: 'success', result: generatedImages[0] });
       } catch (error) {
+        polling = false;
         updateCurrentJob({
           status: 'error',
           error: error instanceof Error ? error.message : 'Unknown error',

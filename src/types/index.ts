@@ -33,6 +33,7 @@ export interface GenerationJob {
   aspectRatio: AspectRatio;
   status: GenerationStatus;
   error?: string;
+  progressText?: string;
   result?: GeneratedImage;
   referenceImages?: string[];
   startedAt: number;

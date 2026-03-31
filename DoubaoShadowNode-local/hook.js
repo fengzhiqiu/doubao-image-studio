@@ -52,6 +52,8 @@
                                                 const content = JSON.parse(eventData.message.content);
                                                 if (content.text) {
                                                     accumulatedText += content.text;
+                                                    // Send progress update with accumulated text
+                                                    window.postMessage({ type: 'DOUBAO_PROGRESS', text: content.text }, '*');
                                                 }
                                             } catch (e) {
                                                 // content might not be JSON
@@ -77,6 +79,8 @@
                                                         }
                                                     });
                                                     console.log('Doubao Shadow Node: Extracted images:', images.length);
+                                                    // Notify progress: images found
+                                                    window.postMessage({ type: 'DOUBAO_PROGRESS', text: `已生成 ${images.length} 张图片，等待完成...` }, '*');
                                                 }
                                             } catch (e) {
                                                 console.log('Image content parse error:', e);

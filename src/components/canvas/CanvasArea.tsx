@@ -110,7 +110,7 @@ export function CanvasArea({ onReusePrompt, onUseAsReference }: CanvasAreaProps)
                 <div className="rounded-xl overflow-hidden border border-white/[0.04] bg-white/[0.01] flex items-center justify-center p-20">
                   <div className="flex flex-col items-center gap-2.5">
                     <span className="w-5 h-5 border-2 border-violet-400 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(167,139,250,0.3)]" />
-                    <span className="text-xs text-white/20 uppercase tracking-[0.2em] font-medium">Generating Artifacts...</span>
+                    <span className="text-xs text-white/40 tracking-[0.08em] font-medium">{currentJob.progressText || '正在生成中...'}</span>
                   </div>
                 </div>
               </div>

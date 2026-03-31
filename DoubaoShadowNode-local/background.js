@@ -207,6 +207,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
         });
         return true; // Keep channel open for async response
+    } else if (request.type === 'PROGRESS') {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'PROGRESS',
+                requestId: request.requestId,
+                content: { text: request.text }
+            }));
+        }
     } else if (request.type === 'RESULT') {
         console.log('Got result from content script:', request);
         if (socket && socket.readyState === WebSocket.OPEN) {
