@@ -5,7 +5,12 @@
       "Bash(find:*)",
       "Bash(md5)",
       "Bash(git checkout:*)",
-      "Bash(git add:*)"
+      "Bash(grep -n \"chat\\\\|CHAT\\\\|conversation\\\\|stream\" /Users/ios/Desktop/lx-home/doubao-tauri/server/src/*.js)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(npm run:*)"
     ]
   }
 }
