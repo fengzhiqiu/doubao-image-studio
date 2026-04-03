@@ -176,9 +176,13 @@ app.get('/local-proxy', async (req, res) => {
 
     if (!filePath) return res.status(400).send('Missing path');
     
-    // Security: Only allow files from the user's home directory
-    if (!filePath.startsWith('/Users/')) {
-        console.warn(`[Server] Blocked out-of-scope access: ${filePath}`);
+    // Security Fix: Normalize path to prevent path traversal attacks
+    // e.g., /Users/foo/../../etc/passwd → /etc/passwd → blocked
+    const path = await import('path');
+    const normalizedPath = path.default.resolve(filePath);
+    const ALLOWED_PREFIX = '/Users/';
+    if (!normalizedPath.startsWith(ALLOWED_PREFIX)) {
+        console.warn(`[Server] Blocked path traversal attempt: ${filePath} → ${normalizedPath}`);
         return res.status(403).send('Access denied: Outside allowed scope');
     }
 
@@ -343,8 +347,8 @@ async function downloadImageAsBase64(url) {
 }
 
 // Start server
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Doubao AI Studio Server running at: http://0.0.0.0:${PORT}`);
+server.listen(PORT, '127.0.0.1', () => {
+    console.log(`🚀 Doubao AI Studio Server running at: http://127.0.0.1:${PORT}`);
     console.log(`📱 Web App: http://localhost:${PORT}`);
     console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`);
     console.log(`📊 Health Check: http://localhost:${PORT}/api/health`);
