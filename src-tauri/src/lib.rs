@@ -206,6 +206,9 @@ pub fn run() {
     let node_path = which_node();
     let server_dir = find_server_dir();
 
+    println!("[AI Studio] node_path = {:?}", node_path);
+    println!("[AI Studio] server_dir = {:?}", server_dir);
+
     // If port 8081 is already in use, skip starting the server
     let port_in_use = std::net::TcpStream::connect("127.0.0.1:8081").is_ok();
 
@@ -215,8 +218,9 @@ pub fn run() {
     } else if let (Some(node), Some(dir)) = (node_path, server_dir) {
         let dir_path = std::path::PathBuf::from(&dir);
         let script_path = dir_path.join("src").join("app.js");
+        println!("[AI Studio] Starting server: {} {:?}", node, script_path);
         match Command::new(&node)
-            .arg(script_path)
+            .arg(&script_path)
             .current_dir(&dir_path)
             .env("PORT", "8081")
             .spawn()
@@ -231,7 +235,7 @@ pub fn run() {
             }
         }
     } else {
-        eprintln!("[AI Studio] Node.js or server directory not found");
+        eprintln!("[AI Studio] Node.js or server directory not found, server will not start");
         None
     };
 
@@ -268,38 +272,136 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+/// Find node executable — covers macOS (Homebrew + nvm), Windows, and PATH fallback
 fn which_node() -> Option<String> {
-    let candidates = [
-        "/usr/local/opt/node@22/bin/node",
-        "/usr/local/bin/node",
-        "/opt/homebrew/bin/node",
-        "node",
-        "node.exe",
+    // macOS: common Homebrew / nvm / system paths
+    #[cfg(target_os = "macos")]
+    let candidates = vec![
+        "/opt/homebrew/bin/node".to_string(),          // Homebrew Apple Silicon
+        "/usr/local/bin/node".to_string(),              // Homebrew Intel
+        "/usr/local/opt/node@22/bin/node".to_string(),  // Homebrew pinned
+        "/usr/local/opt/node@20/bin/node".to_string(),
+        "/usr/local/opt/node@18/bin/node".to_string(),
+        // nvm default locations
+        format!("{}/.nvm/versions/node/v22.0.0/bin/node", std::env::var("HOME").unwrap_or_default()),
+        "node".to_string(),
     ];
-    for path in &candidates {
-        if std::path::Path::new(path).exists() || *path == "node" || *path == "node.exe" {
-            return Some(path.to_string());
+
+    #[cfg(target_os = "windows")]
+    let candidates = vec![
+        r"C:\Program Files\nodejs\node.exe".to_string(),
+        r"C:\Program Files (x86)\nodejs\node.exe".to_string(),
+        "node.exe".to_string(),
+        "node".to_string(),
+    ];
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let candidates = vec![
+        "/usr/local/bin/node".to_string(),
+        "/usr/bin/node".to_string(),
+        "node".to_string(),
+    ];
+
+    for candidate in &candidates {
+        // For bare "node" / "node.exe", try to resolve via PATH using `which`/`where`
+        if candidate == "node" || candidate == "node.exe" {
+            #[cfg(target_os = "windows")]
+            let check = Command::new("where").arg("node").output();
+            #[cfg(not(target_os = "windows"))]
+            let check = Command::new("which").arg("node").output();
+
+            if let Ok(out) = check {
+                if out.status.success() {
+                    let path = String::from_utf8_lossy(&out.stdout).trim().lines().next()
+                        .unwrap_or("").to_string();
+                    if !path.is_empty() {
+                        println!("[AI Studio] Found node via PATH: {}", path);
+                        return Some(path);
+                    }
+                }
+            }
+        } else if std::path::Path::new(candidate).exists() {
+            println!("[AI Studio] Found node at: {}", candidate);
+            return Some(candidate.clone());
         }
     }
+
+    // Last resort: nvm — scan ~/.nvm/versions/node/*/bin/node
+    #[cfg(target_os = "macos")]
+    if let Ok(home) = std::env::var("HOME") {
+        let nvm_dir = std::path::PathBuf::from(&home).join(".nvm/versions/node");
+        if nvm_dir.exists() {
+            if let Ok(mut entries) = std::fs::read_dir(&nvm_dir) {
+                // Collect and sort descending to prefer latest version
+                let mut versions: Vec<_> = entries
+                    .flatten()
+                    .filter(|e| e.path().is_dir())
+                    .collect();
+                versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+                for entry in versions {
+                    let node_bin = entry.path().join("bin/node");
+                    if node_bin.exists() {
+                        println!("[AI Studio] Found node via nvm: {:?}", node_bin);
+                        return Some(node_bin.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+
     None
 }
 
+/// Find the bundled server directory — robust across macOS app bundle, Windows installer, and dev mode
 fn find_server_dir() -> Option<String> {
-    // Try relative to the app's resource dir, or next to the binary
     let exe = std::env::current_exe().ok()?;
-    let app_dir = exe.parent()?;
+    let exe_dir = exe.parent()?;
 
-    let candidates = [
-        app_dir.join("../Resources/server"),
-        app_dir.join("server"),
-        // Dev mode: look for the original doubao-pro project
-        std::path::PathBuf::from("/Users/ios/Desktop/lx-home/doubao-tauri/server"),
-    ];
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
 
-    for path in &candidates {
-        if path.join("src").join("app.js").exists() {
-            return Some(path.to_string_lossy().to_string());
+    // macOS app bundle: <app>/Contents/MacOS/../Resources/server
+    //   exe_dir = .../doubao-assistant.app/Contents/MacOS
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(macos_dir) = exe_dir.parent() {           // Contents/
+            candidates.push(macos_dir.join("Resources/server"));
+        }
+        // Also try two levels up (universal binary may nest differently)
+        if let Some(contents) = exe_dir.parent() {
+            if let Some(app) = contents.parent() {
+                candidates.push(app.join("Contents/Resources/server"));
+            }
         }
     }
+
+    // Windows NSIS/MSI installer: server is next to the .exe
+    #[cfg(target_os = "windows")]
+    {
+        candidates.push(exe_dir.join("server"));
+        candidates.push(exe_dir.join("resources/server"));
+        candidates.push(exe_dir.join("../server"));
+    }
+
+    // Generic: relative to executable
+    candidates.push(exe_dir.join("server"));
+    candidates.push(exe_dir.join("../Resources/server"));
+    candidates.push(exe_dir.join("../../server"));
+
+    // Dev mode fallback
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.join("server"));
+        candidates.push(cwd.join("../server"));
+    }
+
+    for path in &candidates {
+        // Canonicalize resolves ".." and symlinks
+        let resolved = path.canonicalize().unwrap_or_else(|_| path.clone());
+        let check = resolved.join("src/app.js");
+        println!("[AI Studio] Checking server path: {:?} => exists={}", check, check.exists());
+        if check.exists() {
+            return Some(resolved.to_string_lossy().to_string());
+        }
+    }
+
     None
 }
