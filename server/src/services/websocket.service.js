@@ -54,7 +54,16 @@ class WebSocketService {
      * 设置连接处理器
      */
     setupConnectionHandler() {
-        this.wss.on('connection', (ws) => {
+        this.wss.on('connection', (ws, req) => {
+            // Security Fix: Only allow connections from localhost (Chrome extension or local app)
+            const remoteAddr = req.socket.remoteAddress;
+            const allowedOrigins = ['::1', '127.0.0.1', '::ffff:127.0.0.1'];
+            if (!allowedOrigins.includes(remoteAddr)) {
+                console.warn(`[Security] Rejected WebSocket connection from non-local address: ${remoteAddr}`);
+                ws.terminate();
+                return;
+            }
+
             console.log('✅ New Worker Connected!');
 
             ws.isAlive = true;
