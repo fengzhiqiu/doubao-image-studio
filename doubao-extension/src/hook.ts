@@ -15,8 +15,8 @@ window.fetch = async function (url: string | URL | Request, options?: RequestIni
 
         let accumulatedText = '';
         let images = [];
-
         let buffer = '';
+        let currentEvent = '';
 
         (async () => {
             try {
@@ -28,84 +28,114 @@ window.fetch = async function (url: string | URL | Request, options?: RequestIni
                     buffer += chunk;
 
                     const lines = buffer.split('\n');
-                    // Keep the last line in the buffer as it might be incomplete
+                    // Keep the last (possibly incomplete) line in buffer
                     buffer = lines.pop();
 
                     for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const jsonStr = line.slice(6).trim();
-                            if (!jsonStr || jsonStr === '[DONE]') continue;
+                        const trimmed = line.trim();
+
+                        // Parse SSE event name line
+                        if (trimmed.startsWith('event:')) {
+                            currentEvent = trimmed.slice(6).trim();
+                            continue;
+                        }
+
+                        // Parse SSE data line
+                        if (trimmed.startsWith('data:')) {
+                            const jsonStr = trimmed.slice(5).trim();
+                            if (!jsonStr || jsonStr === '{}') continue;
 
                             try {
                                 const data = JSON.parse(jsonStr);
 
-                                // Debug: log all event types
-                                if (data.event_type) {
-                                    console.log('[Hook] event_type:', data.event_type, 'has event_data:', !!data.event_data);
-                                }
-                                if (data.event_type === 2001 && data.event_data) {
-                                    const eventData = JSON.parse(data.event_data);
-                                    console.log('[Hook] content_type:', eventData.message?.content_type, 'is_finish:', eventData.is_finish);
-
-                                    // Extract text from various content types
-                                    // 2001: user message, 2018: AI response, 10000: other text, 2071: code blocks
-                                    if (eventData.message && [2001, 2018, 10000, 2071].includes(eventData.message.content_type)) {
-                                        try {
-                                            const content = JSON.parse(eventData.message.content);
-                                            if (content.text) {
-                                                accumulatedText += content.text;
-                                                // Send progress update with accumulated text
-                                                window.postMessage({ type: 'DOUBAO_PROGRESS', text: content.text }, '*');
-                                            }
-                                        } catch (e) {
-                                            // content might not be JSON
-                                        }
+                                // Handle CHUNK_DELTA — plain text delta
+                                if (currentEvent === 'CHUNK_DELTA') {
+                                    if (data.text) {
+                                        accumulatedText += data.text;
+                                        window.postMessage({ type: 'DOUBAO_PROGRESS', text: data.text }, '*');
                                     }
+                                    continue;
+                                }
 
-                                    // Extract images (content_type 2074)
-                                    if (eventData.message && eventData.message.content_type === 2074) {
-                                        try {
-                                            const content = JSON.parse(eventData.message.content);
-                                            if (content.creations && Array.isArray(content.creations)) {
-                                                content.creations.forEach(creation => {
-                                                    if (creation.type === 1 && creation.image) {
+                                // Handle STREAM_CHUNK — contains patch_op with content blocks
+                                if (currentEvent === 'STREAM_CHUNK') {
+                                    const patchOps = data.patch_op || [];
+                                    for (const op of patchOps) {
+                                        const contentBlocks = op?.patch_value?.content_block || [];
+                                        for (const block of contentBlocks) {
+                                            // block_type 2074 = image creation block
+                                            if (block.block_type === 2074) {
+                                                const creations = block.content?.creation_block?.creations || [];
+                                                const newImages = [];
+                                                for (const creation of creations) {
+                                                    if (creation.type === 1 && creation.image && creation.image.status === 2) {
                                                         const imgData = creation.image;
-                                                        images.push({
-                                                            // High-res (No watermark)
+                                                        newImages.push({
                                                             url: imgData.image_ori_raw?.url || imgData.image_ori?.url || '',
-                                                            // Preview / Thumbnail
                                                             thumbnail_url: imgData.image_thumb?.url || imgData.image_preview?.url || imgData.image_ori_raw?.url || '',
                                                             width: imgData.image_ori_raw?.width || imgData.image_ori?.width || 1024,
                                                             height: imgData.image_ori_raw?.height || imgData.image_ori?.height || 1024
                                                         });
                                                     }
-                                                });
-                                                console.log('Doubao Shadow Node: Extracted images:', images.length);
-                                                // Notify progress: images found
-                                                window.postMessage({ type: 'DOUBAO_PROGRESS', text: `已生成 ${images.length} 张图片，等待完成...` }, '*');
+                                                }
+
+                                                if (newImages.length > 0) {
+                                                    images = newImages;
+                                                    console.log('Doubao Shadow Node: Extracted images:', images.length);
+                                                    window.postMessage({ type: 'DOUBAO_PROGRESS', text: `已生成 ${images.length} 张图片，等待完成...` }, '*');
+                                                }
+
+                                                // is_finish on image block = all done
+                                                if (block.is_finish && images.length > 0) {
+                                                    console.log('Doubao Shadow Node: Sending Final Result', {
+                                                        text: accumulatedText.substring(0, 50),
+                                                        images: images.length
+                                                    });
+                                                    window.postMessage({
+                                                        type: 'DOUBAO_CHUNK',
+                                                        text: accumulatedText,
+                                                        images: images,
+                                                        is_finish: true
+                                                    }, '*');
+                                                }
                                             }
-                                        } catch (e) {
-                                            console.log('Image content parse error:', e);
+
+                                            // block_type 10000 = text block (fallback text extraction)
+                                            if (block.block_type === 10000) {
+                                                const text = block.content?.text_block?.text;
+                                                if (text) {
+                                                    accumulatedText += text;
+                                                    window.postMessage({ type: 'DOUBAO_PROGRESS', text: text }, '*');
+                                                }
+                                            }
                                         }
                                     }
+                                    continue;
+                                }
 
-                                    // Send final result when finished
-                                    if (eventData.is_finish) {
-                                        console.log('Doubao Shadow Node: Sending Final Result', {
-                                            text: accumulatedText.substring(0, 50),
-                                            images: images.length
-                                        });
+                                // Handle SSE_REPLY_END (end_type=3 is the final end)
+                                if (currentEvent === 'SSE_REPLY_END') {
+                                    if (data.end_type === 3 && images.length === 0 && accumulatedText.length > 0) {
+                                        // Text-only response (no images), send accumulated text
+                                        console.log('Doubao Shadow Node: Text-only reply finished');
                                         window.postMessage({
                                             type: 'DOUBAO_CHUNK',
                                             text: accumulatedText,
-                                            images: images,
+                                            images: [],
                                             is_finish: true
                                         }, '*');
                                     }
+                                    continue;
                                 }
+
                             } catch (e) {
-                                console.log('Parse error for line:', line.substring(0, 100), e);
+                                console.log('Parse error for line:', trimmed.substring(0, 100), e);
                             }
+                        }
+
+                        // Blank line resets current event
+                        if (trimmed === '') {
+                            currentEvent = '';
                         }
                     }
                 }
