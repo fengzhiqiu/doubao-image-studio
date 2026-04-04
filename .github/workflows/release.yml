@@ -55,15 +55,8 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Install Chrome Extension dependencies
-        run: |
-          cd doubao-extension
-          npm install
-
-      - name: Build Chrome Extension
-        run: |
-          cd doubao-extension
-          npx vite build
+      # Chrome extension dist/ is pre-built and committed to git.
+      # No need to rebuild here — doubao-extension/dist/ is already up to date.
 
       - name: Install server dependencies (rebuild native modules for target arch)
         run: |
