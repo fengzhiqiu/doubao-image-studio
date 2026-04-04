@@ -55,20 +55,15 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Build Chrome Extension (Unix)
-        if: runner.os != 'Windows'
+      - name: Install Chrome Extension dependencies
         run: |
           cd doubao-extension
-          PATH="../node_modules/.bin:$PATH" NODE_PATH="../node_modules" vite build
+          npm install
 
-      - name: Build Chrome Extension (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
+      - name: Build Chrome Extension
         run: |
           cd doubao-extension
-          $env:PATH = "..\node_modules\.bin;$env:PATH"
-          $env:NODE_PATH = "..\node_modules"
-          vite build
+          npx vite build
 
       - name: Install server dependencies (rebuild native modules for target arch)
         run: |
