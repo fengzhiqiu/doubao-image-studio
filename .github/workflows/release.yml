@@ -12,22 +12,8 @@ jobs:
   build-tauri:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-13'       # Intel x86_64 runner
-            args: '--target x86_64-apple-darwin'
-            artifact_name: 'macos-intel'
-            rust_targets: 'x86_64-apple-darwin'
-            node_arch: 'x64'
-          - platform: 'windows-latest'
-            args: ''
-            artifact_name: 'windows'
-            rust_targets: ''
-            node_arch: 'x64'
+    runs-on: macos-13  # Intel x86_64 runner
 
-    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,7 +21,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          architecture: ${{ matrix.node_arch }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -45,7 +30,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_targets }}
+          targets: x86_64-apple-darwin
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -58,16 +43,15 @@ jobs:
       # Chrome extension dist/ is pre-built and committed to git.
       # No need to rebuild here — doubao-extension/dist/ is already up to date.
 
-      - name: Install server dependencies (rebuild native modules for target arch)
+      - name: Install server dependencies (rebuild native modules for Intel x86_64)
         run: |
           cd server
           npm install
           npm rebuild better-sqlite3
           npm rebuild sharp
 
-      - name: Build Tauri app
+      - name: Build Tauri app (macOS Intel x86_64)
         uses: tauri-apps/tauri-action@v0
-        id: tauri-build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -76,25 +60,22 @@ jobs:
           releaseBody: |
             ## 下载安装
 
-            - **macOS (Intel)**: 下载 `x86_64.dmg` 文件，拖入 Applications 即可
-            - **Windows**: 下载 `.msi` 或 `.exe` 文件运行安装
+            - **macOS (Intel)**: 下载 `.dmg` 文件，拖入 Applications 即可
 
             ## 更新说明
 
             See commits for details.
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          args: --target x86_64-apple-darwin
 
       - name: Upload installers as Artifacts
         if: github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
-          name: installer-${{ matrix.artifact_name }}
+          name: installer-macos-intel
           path: |
             src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
             src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: warn
           retention-days: 14
