@@ -16,12 +16,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: '--target universal-apple-darwin'
-            artifact_name: 'macos'
+          - platform: 'macos-13'       # Intel x86_64 runner
+            args: '--target x86_64-apple-darwin'
+            artifact_name: 'macos-intel'
+            rust_targets: 'x86_64-apple-darwin'
+            node_arch: 'x64'
           - platform: 'windows-latest'
             args: ''
             artifact_name: 'windows'
+            rust_targets: ''
+            node_arch: 'x64'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -30,7 +34,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: '20'
+          architecture: ${{ matrix.node_arch }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -40,15 +45,27 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
 
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Install server dependencies
+      - name: Build Chrome Extension
+        run: |
+          cd doubao-extension
+          PATH="../node_modules/.bin:$PATH" NODE_PATH="../node_modules" vite build
+
+      - name: Install server dependencies (rebuild native modules for target arch)
         run: |
           cd server
           npm install
+          npm rebuild better-sqlite3
+          npm rebuild sharp
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -61,7 +78,7 @@ jobs:
           releaseBody: |
             ## 下载安装
 
-            - **macOS**: 下载 `.dmg` 文件，拖入 Applications 即可
+            - **macOS (Intel)**: 下载 `x86_64.dmg` 文件，拖入 Applications 即可
             - **Windows**: 下载 `.msi` 或 `.exe` 文件运行安装
 
             ## 更新说明
@@ -77,9 +94,9 @@ jobs:
         with:
           name: installer-${{ matrix.artifact_name }}
           path: |
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 14
